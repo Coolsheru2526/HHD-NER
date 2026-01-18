@@ -1,0 +1,18 @@
+# Core
+numpy==1.26.4
+tqdm==4.66.1
+scikit-learn==1.4.0
+regex==2023.12.25
+
+# Transformers
+transformers==4.38.2
+sentencepiece==0.2.0
+tokenizers==0.15.2
+datasets==2.17.1
+evaluate==0.4.1
+
+# CRF
+torchcrf==1.1.0
+
+# Indic NLP
+indic-nlp-library==0.92
