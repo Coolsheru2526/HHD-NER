@@ -1,13 +1,18 @@
 
 import os
 import json
+import sys
+import time
+import random
+import logging
+import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from dataset import read_conll, encode
 from model import MuRIL_CRF
-from evaluation import evaluate_ner
+from evaluation import evaluate_ner, validate_bio_sequences, compute_entity_distribution
 
 
 DATA_DIR = "data/processed"
@@ -103,19 +108,59 @@ def validate(model, dataloader, device):
 def train():
     """Main training function with batching and validation."""
     
+    SEED = 42
+    torch.manual_seed(SEED)
+    torch.cuda.manual_seed_all(SEED)
+    np.random.seed(SEED)
+    random.seed(SEED)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    
     os.makedirs(SAVE_DIR, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"[train_v2] Using device: {device}")
+    
+    log_file = os.path.join(SAVE_DIR, "training.log")
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_file, mode='w'),
+            logging.StreamHandler()
+        ]
+    )
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"Using device: {device}")
+    logger.info(f"Random seed: {SEED}")
+    logger.info(f"Training log: {log_file}")
+    
+    logger.info("Validating training data...")
+    _, train_labels_check = read_conll(TRAIN_PATH)
+    validation = validate_bio_sequences(train_labels_check)
+    
+    if not validation["is_valid"]:
+        logger.error(f"Found {len(validation['violations'])} BIO violations in training data!")
+        logger.error("Please fix data before training. Exiting.")
+        sys.exit(1)
+    
+    logger.info("[OK] BIO sequences validated")
+    
+    # Check entity distribution
+    dist = compute_entity_distribution(train_labels_check)
+    logger.info("Entity distribution in training set:")
+    for entity, count in sorted(dist.items(), key=lambda x: -x[1]):
+        logger.info(f"  {entity}: {count}")
     
     # Load datasets
-    print("[train_v2] Loading datasets...")
+    logger.info("Loading datasets...")
     train_dataset = load_dataset(TRAIN_PATH, tag2id)
     dev_dataset = load_dataset(DEV_PATH, tag2id)
     
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
     dev_loader = DataLoader(dev_dataset, batch_size=BATCH_SIZE, shuffle=False)
     
-    print(f"[train_v2] Train: {len(train_dataset)} sentences, Dev: {len(dev_dataset)} sentences")
+    logger.info(f"Train: {len(train_dataset)} sentences, Dev: {len(dev_dataset)} sentences")
+    logger.info(f"Batch size: {BATCH_SIZE}, Learning rate: {LR}, Epochs: {EPOCHS}")
     
     # Initialize model
     model = MuRIL_CRF(len(TAGS)).to(device)
@@ -126,24 +171,30 @@ def train():
         optimizer, mode='max', factor=0.5, patience=1, verbose=True
     )
     
-    # Training history
     history = {
         "train_loss": [],
         "dev_loss": [],
         "dev_f1": [],
+        "epoch_times": [],
+        "gpu_memory_gb": [],
         "best_epoch": 0,
-        "best_f1": 0.0
+        "best_f1": 0.0,
+        "seed": SEED,
+        "batch_size": BATCH_SIZE,
+        "learning_rate": LR
     }
     
     best_f1 = 0.0
     patience_counter = 0
     
-    print("[train_v2] Starting training...")
-    print("="*60)
+    logger.info("Starting training...")
+    logger.info("="*60)
+    total_training_start = time.time()
     
     for epoch in range(EPOCHS):
         model.train()
         epoch_loss = 0.0
+        epoch_start_time = time.time()
         
         progress = tqdm(train_loader, desc=f"Epoch {epoch+1}/{EPOCHS}")
         
@@ -172,13 +223,26 @@ def train():
         
         # Update scheduler
         scheduler.step(dev_f1)
+        epoch_time = time.time() - epoch_start_time
+        
+        if torch.cuda.is_available():
+            max_memory = torch.cuda.max_memory_allocated() / (1024**3)  # Convert to GB
+            torch.cuda.reset_peak_memory_stats()
+        else:
+            max_memory = 0.0
         
         history["train_loss"].append(avg_train_loss)
         history["dev_loss"].append(dev_loss)
         history["dev_f1"].append(dev_f1)
+        history["epoch_times"].append(epoch_time)
+        history["gpu_memory_gb"].append(max_memory)
         
-        print(f"\nEpoch {epoch+1}: Train Loss={avg_train_loss:.4f}, "
-              f"Dev Loss={dev_loss:.4f}, Dev F1={dev_f1:.4f}")
+        logger.info(f"\nEpoch {epoch+1}/{EPOCHS}:")
+        logger.info(f"  Train Loss: {avg_train_loss:.4f}")
+        logger.info(f"  Dev Loss:   {dev_loss:.4f}")
+        logger.info(f"  Dev F1:     {dev_f1:.4f}")
+        logger.info(f"  Time:       {epoch_time/60:.1f} min")
+        logger.info(f"  GPU Memory: {max_memory:.2f} GB")
         
         # Save best model
         if dev_f1 > best_f1:
@@ -189,11 +253,11 @@ def train():
             
             model_path = os.path.join(SAVE_DIR, "best_model.pt")
             torch.save(model.state_dict(), model_path)
-            print(f"  -> New best model saved (F1={best_f1:.4f})")
+            logger.info(f"  [OK] New best model saved (F1={best_f1:.4f})")
         else:
             patience_counter += 1
             if patience_counter >= PATIENCE:
-                print(f"\n[train_v2] Early stopping at epoch {epoch+1}")
+                logger.info(f"\nEarly stopping at epoch {epoch+1} (patience={PATIENCE})")
                 break
         
         # Save checkpoint
@@ -201,13 +265,19 @@ def train():
         torch.save(model.state_dict(), checkpoint_path)
     
     # Save training history
+    total_training_time = time.time() - total_training_start
+    history["total_training_time_hours"] = total_training_time / 3600
+    
     with open(os.path.join(SAVE_DIR, "training_history.json"), "w") as f:
         json.dump(history, f, indent=2)
     
-    print("="*60)
-    print(f"[train_v2] Training complete!")
-    print(f"[train_v2] Best F1: {history['best_f1']:.4f} at epoch {history['best_epoch']}")
-    print(f"[train_v2] Model saved to {SAVE_DIR}/best_model.pt")
+    logger.info("="*60)
+    logger.info("Training complete!")
+    logger.info(f"Best F1: {history['best_f1']:.4f} at epoch {history['best_epoch']}")
+    logger.info(f"Total training time: {total_training_time/3600:.2f} hours")
+    logger.info(f"Model saved to {SAVE_DIR}/best_model.pt")
+    logger.info(f"Training log saved to {log_file}")
+    logger.info("="*60)
     
     return history
 
