@@ -78,22 +78,54 @@ def check_environment():
     
     # 5. Check dependencies
     print("\n[5/6] Checking Python dependencies...")
-    required_modules = {
-        "transformers": "Transformers library",
-        "torchcrf": "CRF layer",
-        "seqeval": "NER evaluation",
-        "indicnlp": "Indic NLP library",
-        "tqdm": "Progress bars",
-        "numpy": "NumPy",
-    }
     
-    for module, description in required_modules.items():
-        try:
-            __import__(module)
-            print(f"  ✓ {description}")
-        except ImportError:
-            print(f"  ✗ MISSING: {description} (pip install {module})")
-            issues.append(f"Missing dependency: {module}")
+    # Check transformers
+    try:
+        import transformers
+        print(f"  ✓ Transformers library")
+    except ImportError:
+        print(f"  ✗ MISSING: Transformers library (pip install transformers)")
+        issues.append("Missing dependency: transformers")
+    
+    # Check TorchCRF (package uses capital T and C in import)
+    try:
+        from TorchCRF import CRF
+        print(f"  ✓ CRF layer")
+    except ImportError:
+        print(f"  ✗ MISSING: CRF layer (pip install torchcrf)")
+        issues.append("Missing dependency: torchcrf")
+    
+    # Check seqeval
+    try:
+        import seqeval
+        print(f"  ✓ NER evaluation")
+    except ImportError:
+        print(f"  ✗ MISSING: NER evaluation (pip install seqeval)")
+        issues.append("Missing dependency: seqeval")
+    
+    # Check indicnlp
+    try:
+        import indicnlp
+        print(f"  ✓ Indic NLP library")
+    except ImportError:
+        print(f"  ✗ MISSING: Indic NLP library (pip install indic-nlp-library)")
+        issues.append("Missing dependency: indic-nlp-library")
+    
+    # Check tqdm
+    try:
+        import tqdm
+        print(f"  ✓ Progress bars")
+    except ImportError:
+        print(f"  ✗ MISSING: Progress bars (pip install tqdm)")
+        issues.append("Missing dependency: tqdm")
+    
+    # Check numpy
+    try:
+        import numpy
+        print(f"  ✓ NumPy")
+    except ImportError:
+        print(f"  ✗ MISSING: NumPy (pip install numpy)")
+        issues.append("Missing dependency: numpy")
     
     # 6. Check output directory
     print("\n[6/6] Checking output directory...")
