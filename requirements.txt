@@ -16,3 +16,7 @@ torchcrf==1.1.0
 
 # Indic NLP
 indic-nlp-library==0.92
+
+# Evaluation (added for research)
+seqeval==1.2.2
+
