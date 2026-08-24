@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hindi Health-Domain NER — MuRIL Architectures</title>
+<meta name="description" content="An empirical comparison of MuRIL-based architectures for Hindi health-domain Named Entity Recognition.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="wrap">
+    <a class="brand" href="#top">HHD&nbsp;NER</a>
+    <div class="navlinks">
+      <a href="#abstract">Abstract</a>
+      <a href="#method">Method</a>
+      <a href="#results">Results</a>
+      <a href="#demo">Try it</a>
+      <a href="#cite">Cite</a>
+      <a class="icon-link" href="https://github.com/Coolsheru2526/HHD-NER" target="_blank" rel="noopener" aria-label="GitHub repository">
+        <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+      </a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <h1 class="title">An Empirical Study of MuRIL-based Architectures<br>for Hindi Health-Domain NER</h1>
+
+    <p class="authors">
+      <a href="mailto:shreyanshmishra.4365@gmail.com">Shreyansh Mishra</a><sup>*</sup>,
+      <a href="mailto:pandereshubham@gmail.com">Shubham Pandere</a><sup>*</sup>,
+      <a href="mailto:saugata.sinha@ece.vnit.ac.in">Saugata Sinha</a><sup>*</sup>
+    </p>
+    <p class="affil"><sup>*</sup>Electronics &amp; Communication Engineering, VNIT, Nagpur, India</p>
+    <p class="venue">2026 IEEE Guwahati Subsection Conference (GCON)</p>
+
+    <div class="buttons">
+      <a class="btn primary" href="https://ieeexplore.ieee.org/document/11648992" target="_blank" rel="noopener">
+        📄 Paper (IEEE Xplore)
+      </a>
+      <a class="btn outline" href="https://github.com/Coolsheru2526/HHD-NER" target="_blank" rel="noopener">
+        💻 Code
+      </a>
+      <a class="btn outline" href="../Hindi-Health-NER-Empirical-Study.pdf" target="_blank" rel="noopener">
+        📥 PDF
+      </a>
+    </div>
+    <p class="affil" style="margin-top:-24px;margin-bottom:36px;">DOI: <a href="https://doi.org/10.1109/GCON69192.2026.11648992" target="_blank" rel="noopener">10.1109/GCON69192.2026.11648992</a></p>
+
+    <div class="tldr">
+      <strong class="label">TL;DR:</strong>
+      Across five MuRIL-based architectures for Hindi health-domain NER, a <em>stacked</em> MuRIL + BiLSTM + Attention + CNN + CRF model
+      (113M params) matches a plain MuRIL + CRF baseline (110M params) within noise —
+      <strong>0.94 ± 0.008</strong> vs <strong>0.94 ± 0.007</strong> F1 across three seeds — while freezing the encoder or swapping in
+      LoRA costs 12+ F1 points. Full encoder fine-tuning, not architectural depth, is what actually drives performance here.
+    </div>
+  </div>
+</header>
+
+<section id="abstract">
+  <div class="wrap">
+    <h2 class="section-title">Abstract</h2>
+    <p>
+      Named Entity Recognition (NER) is a fundamental task in Natural Language Processing that aims to identify and
+      classify named entities in text into predefined categories. In this work, we present an experimental
+      comparison of MuRIL-based architectures for Hindi health-domain NER. A strong baseline model consisting of
+      MuRIL with a Conditional Random Field (CRF) decoding layer, and a stacked architecture that adds together
+      MuRIL embeddings with BiLSTM, token-level attention, and convolutional layers for capturing sequential and
+      local contextual patterns, followed by CRF-based structured decoding are evaluated. We also include
+      additional MuRIL variants such as frozen encoder training, softmax-based decoding, and LoRA-based
+      fine-tuning. Experiments on the Hindi Health Dataset (HHD) show that MuRIL+CRF provides a strong baseline,
+      while the stacked model achieves marginally increased performance with modest category-wise improvements
+      for certain medical entities.
+    </p>
+  </div>
+</section>
+
+<section id="method">
+  <div class="wrap">
+    <h2 class="section-title">Method</h2>
+    <p>Five MuRIL-based configurations are compared under an identical data split, training protocol, and evaluation procedure:</p>
+
+    <div class="config-list">
+      <ol>
+        <li><strong>MuRIL + CRF (Baseline)</strong> — MuRIL is fully fine-tuned and decoded with a CRF layer.</li>
+        <li><strong>Frozen MuRIL Encoder + CRF</strong> — the MuRIL encoder is left frozen; only the CRF/emission layer is trained (<code>7,020</code> trainable params).</li>
+        <li><strong>MuRIL + Softmax (No CRF)</strong> — full fine-tuning, tokens classified with a standard softmax head instead of a CRF.</li>
+        <li><strong>MuRIL + LoRA + CRF</strong> — parameter-efficient fine-tuning via LoRA adapters (rank 8) on the last 4 layers, followed by CRF decoding (<code>105,324</code> trainable params, ~0.04% of the full model).</li>
+        <li><strong>Stacked Architecture</strong> — MuRIL representations enriched with BiLSTM, token-level attention, and multi-scale CNN feature extraction before CRF decoding (~113M total params).</li>
+      </ol>
+    </div>
+
+    <h3 class="sub-title">MuRIL + CRF (Baseline)</h3>
+    <p>
+      Token representations are formed by summing MuRIL's final four transformer-layer hidden states, then decoded
+      by a CRF layer that models label-transition dependencies and finds the globally valid tag sequence via
+      Viterbi decoding.
+    </p>
+    <div class="eqbox">
+      E<sub>i</sub> = Σ<sub>k=L−3</sub><sup>L</sup> H<sub>i</sub><sup>(k)</sup>&nbsp;&nbsp;&nbsp;&nbsp;
+      Y* = argmax<sub>Y</sub> Σ<sub>i=1</sub><sup>T</sup> ( P<sub>i,yᵢ</sub> + T<sub>yᵢ₋₁,yᵢ</sub> )
+    </div>
+    <figure class="arch">
+      <img src="assets/baseline-architecture.webp" alt="MuRIL + CRF baseline architecture diagram" loading="lazy">
+      <figcaption>Fig. 1 — Baseline: Input Tokens → MuRIL Encoder (sum of last 4 layers) → CRF Decoder → NER Tag Sequence.</figcaption>
+    </figure>
+
+    <h3 class="sub-title">Stacked MuRIL</h3>
+    <p>
+      Hindi's morphological richness and long, multi-token medical entity spans motivate a deeper stack: MuRIL
+      captures contextual semantics, a Bidirectional LSTM reinforces positional/sequential dependencies, token-level
+      attention emphasizes medically relevant tokens, and parallel 1D convolutions (kernel sizes k = 3, 5) capture
+      local n-gram patterns before a final CRF decoding layer.
+    </p>
+    <div class="eqbox">
+      H<sub>i</sub> = [h⃗<sub>i</sub> ; h⃖<sub>i</sub>]&nbsp;&nbsp;&nbsp;&nbsp;
+      α<sub>i</sub> = softmax(w<sup>T</sup> tanh(W H<sub>i</sub>))&nbsp;&nbsp;&nbsp;&nbsp;
+      C = Concat(C<sub>3</sub>, C<sub>5</sub>)&nbsp;&nbsp;&nbsp;&nbsp;
+      P<sub>i</sub> = FC(C<sub>i</sub>)
+    </div>
+    <figure class="arch">
+      <img src="assets/stacked-architecture.webp" alt="Stacked MuRIL architecture diagram: BiLSTM, attention, multi-scale CNN, CRF" loading="lazy">
+      <figcaption>Fig. 2 — Stacked: Input Tokens → MuRIL Encoder → BiLSTM → Token-level Attention → CNN (k=3) ‖ CNN (k=5) → Concatenated Features → Fully Connected → CRF Decoder → NER Tag Sequence.</figcaption>
+    </figure>
+    <p>
+      Separate learning rates are used per module: 2×10⁻⁵ for the MuRIL encoder, 1×10⁻³ for the
+      BiLSTM/attention/CNN/FC layers, and 5×10⁻⁴ for the CRF layer.
+    </p>
+  </div>
+</section>
+
+<section id="results">
+  <div class="wrap">
+    <h2 class="section-title">Results</h2>
+    <p>All models evaluated on the HHD test set under the strict IOB2 entity-level protocol (<code>seqeval</code>), mean ± std across 3 seeds (42, 123, 2024).</p>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Model</th><th>Precision</th><th>Recall</th><th>F1-score</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>MuRIL + CRF (Baseline)</td><td>0.95 ± 0.015</td><td>0.93 ± 0.004</td><td>0.94 ± 0.007</td></tr>
+          <tr><td>MuRIL (Frozen) + CRF</td><td>0.81 ± 0.007</td><td>0.82 ± 0.004</td><td>0.82 ± 0.003</td></tr>
+          <tr><td>MuRIL + Softmax (No CRF)</td><td>0.91 ± 0.018</td><td>0.94 ± 0.001</td><td>0.92 ± 0.01</td></tr>
+          <tr><td>MuRIL + LoRA + CRF</td><td>0.81 ± 0.025</td><td>0.77 ± 0.014</td><td>0.79 ± 0.0061</td></tr>
+          <tr class="best"><td>MuRIL + BiLSTM + Attention + CNN + CRF (Stacked)</td><td>0.94 ± 0.007</td><td>0.94 ± 0.085</td><td>0.94 ± 0.008</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="chart-wrap">
+      <div class="bar-row">
+        <span class="bar-label">Baseline</span>
+        <span class="bar-track"><span class="bar-fill" style="width:94.13%"></span></span>
+        <span>0.941</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">Frozen + CRF</span>
+        <span class="bar-track"><span class="bar-fill" style="width:81.39%"></span></span>
+        <span>0.814</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">Softmax (No CRF)</span>
+        <span class="bar-track"><span class="bar-fill" style="width:92.32%"></span></span>
+        <span>0.923</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">LoRA + CRF</span>
+        <span class="bar-track"><span class="bar-fill" style="width:79.27%"></span></span>
+        <span>0.793</span>
+      </div>
+      <div class="bar-row best">
+        <span class="bar-label">Stacked</span>
+        <span class="bar-track"><span class="bar-fill" style="width:94.15%"></span></span>
+        <span>0.9415</span>
+      </div>
+    </div>
+
+    <h3 class="sub-title">Category-wise F1</h3>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Model</th><th>Consumable</th><th>Disease</th><th>Person</th><th>Symptom</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Baseline</td><td>0.93</td><td>0.94</td><td>0.98</td><td>0.93</td></tr>
+          <tr><td>Frozen + CRF</td><td>0.81</td><td>0.77</td><td>0.97</td><td>0.80</td></tr>
+          <tr><td>Softmax (No CRF)</td><td>0.91</td><td>0.92</td><td>0.97</td><td>0.91</td></tr>
+          <tr><td>LoRA + CRF</td><td>0.79</td><td>0.76</td><td>0.93</td><td>0.76</td></tr>
+          <tr class="best"><td>Stacked</td><td>0.93</td><td>0.96</td><td>0.98</td><td>0.94</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      Freezing the encoder costs the most (~12 F1 points), showing domain adaptation of the encoder itself matters
+      more than any decoding head on top of it. The Stacked model's gains are concentrated in Disease (+0.02) and
+      Symptom (+0.01) over the baseline — consistent with the paper's conclusion that architectural depth helps only
+      marginally once the encoder is fully fine-tuned.
+    </p>
+  </div>
+</section>
+
+<section id="demo">
+  <div class="wrap">
+    <h2 class="section-title">Try it — real predictions</h2>
+    <p>Two examples pulled directly from the models' test-set predictions (<code>Inference_results/</code>), comparing ground truth against what the Baseline and Stacked models actually predicted.</p>
+
+    <div class="demo-card">
+      <p><strong>A clean case</strong> — both models get it right.</p>
+      <p class="hindi-sentence">
+        जब दमा रोग से पीड़ित <span class="ent ent-person">रोगी<sup>PERSON</sup></span> को
+        <span class="ent ent-symptom">दौरा<sup>SYMPTOM</sup></span> पड़ता है तो उसे सूखी या ऐठनदार खांसी होती है।
+      </p>
+      <p class="tag-note">Ground truth = prediction for both Baseline and Stacked models.</p>
+    </div>
+
+    <div class="demo-card">
+      <p><strong>A hard case</strong> — both models make the <em>same</em> mistake.</p>
+      <p class="hindi-sentence">
+        दमा रोग से पीड़ित <span class="ent ent-person">रोगी<sup>PERSON</sup></span> को
+        <span class="ent ent-disease">कफ<sup>pred: DISEASE</sup></span> सख्त, बदबूदार तथा डोरीदार निकलता है।
+      </p>
+      <p class="tag-note">
+        <code>कफ</code> (phlegm) is annotated <strong>SYMPTOM</strong> in the ground truth, but both the Baseline
+        and Stacked models predict <strong>DISEASE</strong> — a genuinely ambiguous disease/symptom boundary on a
+        multi-word medical mention, not a model-specific weakness.
+      </p>
+    </div>
+
+    <div class="legend">
+      <span><span class="swatch" style="background:#dbeafe"></span>Person</span>
+      <span><span class="swatch" style="background:#fee2e2"></span>Symptom</span>
+      <span><span class="swatch" style="background:#fef3c7"></span>Disease</span>
+      <span><span class="swatch" style="background:#dcfce7"></span>Consumable</span>
+    </div>
+  </div>
+</section>
+
+<section id="cite">
+  <div class="wrap">
+    <h2 class="section-title">Cite</h2>
+    <pre class="bibtex">@INPROCEEDINGS{11648992,
+  author={Mishra, Shreyansh and Pandere, Shubham and Sinha, Saugata},
+  booktitle={2026 IEEE Guwahati Subsection Conference (GCON)},
+  title={An Empirical Study of MuRIL-based architectures for Hindi Health Domain NER},
+  year={2026},
+  volume={},
+  number={},
+  pages={1-6},
+  keywords={Modeling;Conditional random fields;Labeling;Bidirectional long short term memory;Architecture;Computer architecture;Training;Printing;Sequences;Sequential analysis;Named Entity Recognition;Hindi NER;Healthcare NLP;Sequence labeling;Neural Network;Transformer Fine-Tuning;MuRIL},
+  doi={10.1109/GCON69192.2026.11648992}
+}</pre>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>
+      Built with the <a href="https://huggingface.co/google/muril-base-cased">MuRIL</a> encoder on the
+      <a href="https://www.kaggle.com/datasets/aijain/hindi-health-dataset">Hindi Health Dataset</a>.
+      Code, training scripts, and full reproduction instructions on
+      <a href="https://github.com/Coolsheru2526/HHD-NER">GitHub</a>.
+    </p>
+  </div>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>
