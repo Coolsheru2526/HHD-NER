@@ -42,9 +42,9 @@ def write_conll_sentences(sentences: List[List[Tuple[str, str]]], path: str):
 def split_data(
     input_path: str,
     output_dir: str = "data/processed",
-    train_ratio: float = 0.8,
-    dev_ratio: float = 0.1,
-    test_ratio: float = 0.1,
+    train_ratio: float = 0.70,
+    dev_ratio: float = 0.15,
+    test_ratio: float = 0.15,
     seed: int = 42
 ) -> dict:
     """

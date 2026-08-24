@@ -1,3 +1,7 @@
+# NOTE: install torch separately first, matching your CUDA version, e.g.:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu118
+# See README.md "Setup" section.
+
 # Core
 numpy==1.26.4
 tqdm==4.66.1
@@ -16,6 +20,9 @@ torchcrf==1.1.0
 
 # Indic NLP
 indic-nlp-library==0.92
+
+# LoRA / PEFT
+peft==0.7.1
 
 # Evaluation (added for research)
 seqeval==1.2.2

@@ -18,13 +18,13 @@ from evaluation import evaluate_ner, validate_bio_sequences, compute_entity_dist
 DATA_DIR = "data/processed"
 TRAIN_PATH = os.path.join(DATA_DIR, "train_split.conll")
 DEV_PATH = os.path.join(DATA_DIR, "dev.conll")
-SAVE_DIR = "weights/lora"  # Different save directory
+BASE_SAVE_DIR = "weights/lora"  # Changed from SAVE_DIR to BASE_SAVE_DIR
 
 # LoRA-specific hyperparameters
-EPOCHS = 5  # Same as baseline for fair comparison
+EPOCHS = 10  # Increased for full run
 BATCH_SIZE = 16
 LR = 2e-4  # Typical LoRA learning rate (safer than 3e-4)
-PATIENCE = 2
+PATIENCE = 3
 
 # Tag schema (must match conll_builder output)
 TAGS = ["O", "B-DISEASE", "I-DISEASE", "B-SYMPTOM", "I-SYMPTOM", 
@@ -98,13 +98,16 @@ def validate(model, dataloader, device):
     
     avg_loss = total_loss / len(dataloader)
     
-    # Compute F1 using seqeval
-    from seqeval.metrics import f1_score
+    # Compute metrics using seqeval
+    from seqeval.metrics import f1_score, precision_score, recall_score
     from seqeval.scheme import IOB2
+    
     f1 = f1_score(all_labels, all_preds, mode='strict', scheme=IOB2)
+    precision = precision_score(all_labels, all_preds, mode='strict', scheme=IOB2)
+    recall = recall_score(all_labels, all_preds, mode='strict', scheme=IOB2)
     
     model.train()
-    return avg_loss, f1, all_preds, all_labels
+    return avg_loss, f1, precision, recall, all_preds, all_labels
 
 
 def count_parameters(model):
@@ -121,21 +124,29 @@ def count_parameters(model):
     }
 
 
-def train():
-    """Main training function with LoRA."""
-    
-    SEED = 42
-    torch.manual_seed(SEED)
-    torch.cuda.manual_seed_all(SEED)
-    np.random.seed(SEED)
-    random.seed(SEED)
+def set_seed(seed):
+    """Set random seeds for reproducibility."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+
+
+def train(seed: int, save_dir: str):
+    """Main training function with LoRA."""
     
-    os.makedirs(SAVE_DIR, exist_ok=True)
+    set_seed(seed)
+    os.makedirs(save_dir, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    log_file = os.path.join(SAVE_DIR, "training.log")
+    log_file = os.path.join(save_dir, "training.log")
+    
+    # Reset logging handlers to avoid mixing logs from different seeds
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+        
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',
@@ -147,10 +158,10 @@ def train():
     logger = logging.getLogger(__name__)
     
     logger.info("="*60)
-    logger.info("LoRA FINE-TUNING EXPERIMENT")
+    logger.info(f"LoRA FINE-TUNING EXPERIMENT - SEED: {seed}")
     logger.info("="*60)
     logger.info(f"Using device: {device}")
-    logger.info(f"Random seed: {SEED}")
+    logger.info(f"Random seed: {seed}")
     logger.info(f"Training log: {log_file}")
     
     logger.info("Validating training data...")
@@ -209,11 +220,15 @@ def train():
         "train_loss": [],
         "dev_loss": [],
         "dev_f1": [],
+        "dev_precision": [],
+        "dev_recall": [],
         "epoch_times": [],
         "gpu_memory_gb": [],
         "best_epoch": 0,
         "best_f1": 0.0,
-        "seed": SEED,
+        "best_precision": 0.0,
+        "best_recall": 0.0,
+        "seed": seed,
         "batch_size": BATCH_SIZE,
         "learning_rate": LR,
         "use_lora": True,
@@ -258,7 +273,7 @@ def train():
         avg_train_loss = epoch_loss / len(train_loader)
         
         # Validation
-        dev_loss, dev_f1, _, _ = validate(model, dev_loader, device)
+        dev_loss, dev_f1, dev_p, dev_r, _, _ = validate(model, dev_loader, device)
         
         # Update scheduler
         scheduler.step(dev_f1)
@@ -273,13 +288,15 @@ def train():
         history["train_loss"].append(avg_train_loss)
         history["dev_loss"].append(dev_loss)
         history["dev_f1"].append(dev_f1)
+        history["dev_precision"].append(dev_p)
+        history["dev_recall"].append(dev_r)
         history["epoch_times"].append(epoch_time)
         history["gpu_memory_gb"].append(max_memory)
         
         logger.info(f"\nEpoch {epoch+1}/{EPOCHS}:")
         logger.info(f"  Train Loss: {avg_train_loss:.4f}")
         logger.info(f"  Dev Loss:   {dev_loss:.4f}")
-        logger.info(f"  Dev F1:     {dev_f1:.4f}")
+        logger.info(f"  Dev P:      {dev_p:.4f}, R: {dev_r:.4f}, F1: {dev_f1:.4f}")
         logger.info(f"  Time:       {epoch_time/60:.1f} min")
         logger.info(f"  GPU Memory: {max_memory:.2f} GB")
         
@@ -288,9 +305,11 @@ def train():
             best_f1 = dev_f1
             history["best_epoch"] = epoch + 1
             history["best_f1"] = best_f1
+            history["best_precision"] = dev_p
+            history["best_recall"] = dev_r
             patience_counter = 0
             
-            model_path = os.path.join(SAVE_DIR, "best_model.pt")
+            model_path = os.path.join(save_dir, "best_model.pt")
             torch.save(model.state_dict(), model_path)
             logger.info(f"  [OK] New best model saved (F1={best_f1:.4f})")
         else:
@@ -298,24 +317,23 @@ def train():
             if patience_counter >= PATIENCE:
                 logger.info(f"\nEarly stopping at epoch {epoch+1} (patience={PATIENCE})")
                 break
-        
-        # Save checkpoint
-        checkpoint_path = os.path.join(SAVE_DIR, f"checkpoint_epoch_{epoch+1}.pt")
-        torch.save(model.state_dict(), checkpoint_path)
     
     # Save training history
     total_training_time = time.time() - total_training_start
     history["total_training_time_hours"] = total_training_time / 3600
     
-    with open(os.path.join(SAVE_DIR, "training_history.json"), "w") as f:
+    with open(os.path.join(save_dir, "training_history.json"), "w") as f:
         json.dump(history, f, indent=2)
     
     logger.info("="*60)
     logger.info("Training complete!")
-    logger.info(f"Best F1: {history['best_f1']:.4f} at epoch {history['best_epoch']}")
+    logger.info(f"Best metrics at epoch {history['best_epoch']}:")
+    logger.info(f"  F1: {history['best_f1']:.4f}")
+    logger.info(f"  P:  {history['best_precision']:.4f}")
+    logger.info(f"  R:  {history['best_recall']:.4f}")
     logger.info(f"Total training time: {total_training_time/3600:.2f} hours")
     logger.info(f"Trainable params: {param_stats['trainable']:,} ({param_stats['trainable_pct']:.2f}%)")
-    logger.info(f"Model saved to {SAVE_DIR}/best_model.pt")
+    logger.info(f"Model saved to {save_dir}/best_model.pt")
     logger.info(f"Training log saved to {log_file}")
     logger.info("="*60)
     
@@ -323,4 +341,53 @@ def train():
 
 
 if __name__ == "__main__":
-    train()
+    seeds = [42, 123, 2024]
+    all_f1 = []
+    all_precision = []
+    all_recall = []
+    
+    # Ensure base directory exists
+    os.makedirs(BASE_SAVE_DIR, exist_ok=True)
+    
+    print("\nStarting LoRA statistical robustness experiment with 3 seeds...")
+    print("="*60)
+    
+    for i, seed in enumerate(seeds):
+        current_save_dir = os.path.join(BASE_SAVE_DIR, f"seed_{seed}")
+        print(f"\n[RUN {i+1}/3] Training with Seed: {seed}")
+        
+        history = train(seed, current_save_dir)
+        all_f1.append(history["best_f1"])
+        all_precision.append(history["best_precision"])
+        all_recall.append(history["best_recall"])
+        
+    # Aggregate results
+    def get_stats(data):
+        return {"mean": float(np.mean(data)), "std": float(np.std(data))}
+
+    stats_f1 = get_stats(all_f1)
+    stats_p = get_stats(all_precision)
+    stats_r = get_stats(all_recall)
+    
+    summary = {
+        "experiment": "lora_robustness",
+        "seeds": seeds,
+        "metrics": {
+            "f1": {"all": all_f1, **stats_f1},
+            "precision": {"all": all_precision, **stats_p},
+            "recall": {"all": all_recall, **stats_r}
+        },
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+    }
+    
+    summary_path = os.path.join(BASE_SAVE_DIR, "summary_stats.json")
+    with open(summary_path, "w") as f:
+        json.dump(summary, f, indent=2)
+        
+    print("\n" + "="*60)
+    print("EXPERIMENT COMPLETE!")
+    print(f"F1-score:  {stats_f1['mean']:.4f} ± {stats_f1['std']:.4f}")
+    print(f"Precision: {stats_p['mean']:.4f} ± {stats_p['std']:.4f}")
+    print(f"Recall:    {stats_r['mean']:.4f} ± {stats_r['std']:.4f}")
+    print(f"Summary saved to: {summary_path}")
+    print("="*60)

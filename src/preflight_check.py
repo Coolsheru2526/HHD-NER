@@ -142,9 +142,9 @@ def check_environment():
         print("\nNext steps:")
         if not all_splits_exist:
             print("  1. Run: python src/split_data.py")
-            print("  2. Run: python src/train_v2.py")
+            print("  2. Run: python src/train_baseline.py")
         else:
-            print("  1. Run: python src/train_v2.py")
+            print("  1. Run: python src/train_baseline.py")
         print("\nTraining will save:")
         print("  - Model: weights/best_model.pt")
         print("  - Logs: weights/training.log")

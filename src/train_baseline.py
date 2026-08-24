@@ -18,13 +18,12 @@ from evaluation import evaluate_ner, validate_bio_sequences, compute_entity_dist
 DATA_DIR = "data/processed"
 TRAIN_PATH = os.path.join(DATA_DIR, "train_split.conll")
 DEV_PATH = os.path.join(DATA_DIR, "dev.conll")
-BASE_SAVE_DIR = "weights/frozen_encoder"  # Changed from SAVE_DIR to BASE_SAVE_DIR
+BASE_SAVE_DIR = "weights/baseline_crf"  # Changed from SAVE_DIR to BASE_SAVE_DIR
 
-# Modified hyperparameters for frozen encoder training
-EPOCHS = 15  # More epochs since only CRF is learning
+EPOCHS = 10  # Increased for full run
 BATCH_SIZE = 16
-LR = 1e-3  # Higher LR (50x) because only training CRF
-PATIENCE = 3  # More patience
+LR = 2e-5
+PATIENCE = 3  # Early stopping patience
 
 # Tag schema (must match conll_builder output)
 TAGS = ["O", "B-DISEASE", "I-DISEASE", "B-SYMPTOM", "I-SYMPTOM", 
@@ -109,21 +108,6 @@ def validate(model, dataloader, device):
     model.train()
     return avg_loss, f1, precision, recall, all_preds, all_labels
 
-
-def count_parameters(model):
-    """Count trainable and total parameters."""
-    total = sum(p.numel() for p in model.parameters())
-    trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    frozen = total - trainable
-    
-    return {
-        "total": total,
-        "trainable": trainable,
-        "frozen": frozen,
-        "trainable_pct": 100 * trainable / total if total > 0 else 0
-    }
-
-
 def set_seed(seed):
     """Set random seeds for reproducibility."""
     random.seed(seed)
@@ -135,7 +119,7 @@ def set_seed(seed):
 
 
 def train(seed: int, save_dir: str):
-    """Main training function with FROZEN ENCODER."""
+    """Main training function with batching and validation."""
     
     set_seed(seed)
     os.makedirs(save_dir, exist_ok=True)
@@ -158,7 +142,7 @@ def train(seed: int, save_dir: str):
     logger = logging.getLogger(__name__)
     
     logger.info("="*60)
-    logger.info(f"FROZEN ENCODER EXPERIMENT - SEED: {seed}")
+    logger.info(f"BASELINE CRF EXPERIMENT - SEED: {seed}")
     logger.info("="*60)
     logger.info(f"Using device: {device}")
     logger.info(f"Random seed: {seed}")
@@ -194,31 +178,15 @@ def train(seed: int, save_dir: str):
     
     # Initialize model
     model = MuRIL_CRF(len(TAGS)).to(device)
-    logger.info("Freezing MuRIL encoder...")
-    for param in model.muril.parameters():
-        param.requires_grad = False
-    logger.info("[OK] MuRIL encoder frozen - only CRF will be trained")
-    
-    # Count parameters
-    param_stats = count_parameters(model)
-    logger.info("Model parameters:")
-    logger.info(f"  Total:     {param_stats['total']:,}")
-    logger.info(f"  Trainable: {param_stats['trainable']:,} ({param_stats['trainable_pct']:.2f}%)")
-    logger.info(f"  Frozen:    {param_stats['frozen']:,}")
-    
-    # Optimizer - only optimize trainable parameters
-    optimizer = torch.optim.AdamW(
-        filter(lambda p: p.requires_grad, model.parameters()),
-        lr=LR
-    )
+    optimizer = torch.optim.AdamW(model.parameters(), lr=LR)
     
     # Learning rate scheduler
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode='max', factor=0.5, patience=2, verbose=True
+        optimizer, mode='max', factor=0.5, patience=1, verbose=True
     )
     
     history = {
-        "experiment": "frozen_encoder",
+        "experiment": "baseline_crf",
         "train_loss": [],
         "dev_loss": [],
         "dev_f1": [],
@@ -232,10 +200,7 @@ def train(seed: int, save_dir: str):
         "best_recall": 0.0,
         "seed": seed,
         "batch_size": BATCH_SIZE,
-        "learning_rate": LR,
-        "freeze_encoder": True,
-        "trainable_params": param_stats['trainable'],
-        "total_params": param_stats['total']
+        "learning_rate": LR
     }
     
     best_f1 = 0.0
@@ -332,7 +297,6 @@ def train(seed: int, save_dir: str):
     logger.info(f"  P:  {history['best_precision']:.4f}")
     logger.info(f"  R:  {history['best_recall']:.4f}")
     logger.info(f"Total training time: {total_training_time/3600:.2f} hours")
-    logger.info(f"Trainable params: {param_stats['trainable']:,} ({param_stats['trainable_pct']:.2f}%)")
     logger.info(f"Model saved to {save_dir}/best_model.pt")
     logger.info(f"Training log saved to {log_file}")
     logger.info("="*60)
@@ -349,7 +313,7 @@ if __name__ == "__main__":
     # Ensure base directory exists
     os.makedirs(BASE_SAVE_DIR, exist_ok=True)
     
-    print("\nStarting statistical robustness experiment with 3 seeds...")
+    print("\nStarting Baseline CRF statistical robustness experiment with 3 seeds...")
     print("="*60)
     
     for i, seed in enumerate(seeds):
@@ -370,7 +334,7 @@ if __name__ == "__main__":
     stats_r = get_stats(all_recall)
     
     summary = {
-        "experiment": "frozen_encoder_robustness",
+        "experiment": "baseline_crf_robustness",
         "seeds": seeds,
         "metrics": {
             "f1": {"all": all_f1, **stats_f1},
