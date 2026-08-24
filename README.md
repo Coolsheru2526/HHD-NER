@@ -2,6 +2,14 @@
 
 Code for *"An Empirical Study of MuRIL-based architectures for Hindi Health Domain NER"*, an empirical comparison of MuRIL-based sequence-labeling architectures for Named Entity Recognition on Hindi healthcare text (**Disease, Symptom, Consumable, Person**), evaluated on the Hindi Health Dataset (HHD).
 
+## Publication
+
+Published in the *2026 IEEE Guwahati Subsection Conference (GCON)*.
+
+**[View on IEEE Xplore →](https://ieeexplore.ieee.org/document/11648992)** (DOI: [10.1109/GCON69192.2026.11648992](https://doi.org/10.1109/GCON69192.2026.11648992))
+
+IEEE Xplore is the official publication record; the PDF in this repo ([`Hindi-Health-NER-Empirical-Study.pdf`](./Hindi-Health-NER-Empirical-Study.pdf)) is the authors' accepted manuscript, included here for convenience. A project page is also available in [`docs/`](./docs/index.html), published via GitHub Pages.
+
 Five architectures are implemented and compared:
 
 | # | Architecture | Description |
@@ -14,13 +22,15 @@ Five architectures are implemented and compared:
 
 ## Results (HHD test set, strict IOB2, seqeval)
 
+Mean ± std across 3 independent seeds (42, 123, 2024):
+
 | Model | Precision | Recall | F1-score |
 |---|---|---|---|
-| MuRIL + CRF (Baseline) | 0.9509 | 0.9319 | 0.9413 |
-| MuRIL (Frozen) + CRF | 0.8071 | 0.8209 | 0.8139 |
-| MuRIL + Softmax (No CRF) | 0.9083 | 0.9376 | 0.9232 |
-| MuRIL + LoRA + CRF | 0.8002 | 0.7853 | 0.7927 |
-| **MuRIL + BiLSTM + Attention + CNN + CRF (Stacked)** | 0.9415 | 0.9415 | **0.9415** |
+| MuRIL + CRF (Baseline) | 0.95 ± 0.015 | 0.93 ± 0.004 | 0.94 ± 0.007 |
+| MuRIL (Frozen) + CRF | 0.81 ± 0.007 | 0.82 ± 0.004 | 0.82 ± 0.003 |
+| MuRIL + Softmax (No CRF) | 0.91 ± 0.018 | 0.94 ± 0.001 | 0.92 ± 0.01 |
+| MuRIL + LoRA + CRF | 0.81 ± 0.025 | 0.77 ± 0.014 | 0.79 ± 0.0061 |
+| **MuRIL + BiLSTM + Attention + CNN + CRF (Stacked)** | 0.94 ± 0.007 | 0.94 ± 0.085 | **0.94 ± 0.008** |
 
 Category-wise F1:
 
@@ -31,8 +41,6 @@ Category-wise F1:
 | MuRIL + Softmax (No CRF) | 0.91 | 0.92 | 0.97 | 0.91 |
 | MuRIL + LoRA + CRF | 0.79 | 0.76 | 0.93 | 0.76 |
 | Stacked | 0.93 | 0.96 | 0.98 | 0.94 |
-
-The full write-up, related work, and analysis are in [`GCON_SUBMISSION_FINAL.pdf`](./GCON_SUBMISSION_FINAL.pdf).
 
 ## Repository structure
 
@@ -148,7 +156,6 @@ All models use AdamW, `ReduceLROnPlateau` on validation F1, and gradient clippin
 }
 ```
 
-> Add a `LICENSE` file for the repo before making it public.
 
 ## Acknowledgements
 
