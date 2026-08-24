@@ -1,2 +1,9 @@
-weights
-env
+weights/
+weights_multirun/
+env/
+venv/
+__pycache__/
+*.pyc
+*.egg-info/
+indic_nlp_resources/
+data/processed/*.conll
