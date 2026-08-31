@@ -8,7 +8,7 @@ Published in the *2026 IEEE Guwahati Subsection Conference (GCON)*.
 
 **[View on IEEE Xplore →](https://ieeexplore.ieee.org/document/11648992)** (DOI: [10.1109/GCON69192.2026.11648992](https://doi.org/10.1109/GCON69192.2026.11648992))
 
-IEEE Xplore is the official publication record; the PDF in this repo ([`Hindi-Health-NER-Empirical-Study.pdf`](./Hindi-Health-NER-Empirical-Study.pdf)) is the authors' accepted manuscript, included here for convenience. A project page is also available in [`docs/`](./docs/index.html), published via GitHub Pages.
+IEEE Xplore is the official publication record; the PDF in this repo ([`Hindi-Health-NER-Empirical-Study.pdf`](./Hindi-Health-NER-Empirical-Study.pdf)) is the authors' accepted manuscript, included here for convenience. A project page is published via GitHub Pages: **https://coolsheru2526.github.io/HHD-NER/**
 
 Five architectures are implemented and compared:
 
